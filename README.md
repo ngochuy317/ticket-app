@@ -19,4 +19,4 @@
 3. Add a new column `is_regenerate` with default value is `False` to tracking if the record is re-generated
 
 # Result
-![command line]()
+![command line](https://github.com/ngochuy317/ticket-app/blob/master/command_line_pic.png)

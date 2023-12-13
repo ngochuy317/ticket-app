@@ -1,12 +1,10 @@
-import gc
 import sys
 import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal, DivisionByZero
 
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import BaseCommand
 from django.db import IntegrityError
-from django.db.transaction import atomic
 
 from ticket.models import Ticket
 
@@ -27,27 +25,33 @@ class Command(BaseCommand):
         ""
         start_time = datetime.now()
         total_tickets = Ticket.objects.filter(is_regenerate=False).count()
+
+        if total_tickets <= 0:
+            return
+
         self.update_progress(0, total_tickets, start_time)
         for i in range(20000):
             tickets = Ticket.objects.filter(is_regenerate=False).order_by("-id")[: self.CHUNKSIZE]
 
-            for index, ticket in enumerate(tickets):
-                with atomic():
-                    try:
-                        _uuid = self._get_random_uuid4()
-                        ticket.token = _uuid
-                        ticket.is_regenerate = True
-                        ticket.save()
-                    except IntegrityError:
-                        _uuid = self._get_random_uuid4()
-                        while Ticket.objects.filter(token=_uuid).exists():
-                            _uuid = self._get_random_uuid4()
-                        ticket.token = _uuid
-                        ticket.is_regenerate = True
-                        ticket.save()
+            if not tickets:
+                continue
 
-                gc.collect()
+            for index, ticket in enumerate(tickets):
+                try:
+                    _uuid = self._get_random_uuid4()
+                    ticket.token = _uuid
+                    ticket.is_regenerate = True
+                    ticket.save()
+                except IntegrityError:
+                    _uuid = self._get_random_uuid4()
+                    while Ticket.objects.filter(token=_uuid).exists():
+                        _uuid = self._get_random_uuid4()
+                    ticket.token = _uuid
+                    ticket.is_regenerate = True
+                    ticket.save()
+
                 self.update_progress(i * 50 + index + 1, total_tickets, start_time)
+            return
 
     def _get_random_uuid4(self):
         return uuid.uuid4()
@@ -67,6 +71,6 @@ class Command(BaseCommand):
         except DivisionByZero:
             remaining_time = '--'
         sys.stdout.write(
-            f'\rProgress: [{hashes + spaces}] {int(round(percent * 100))}% {current_value}/{target_value} remaining: {remaining_time} elapsed_time: {elapsed_time}     '
+            f'\rProgress: [{hashes + spaces}] {int(round(percent * 100))}% {current_value}/{target_value} remaining: {remaining_time} elapsed_time: {elapsed_time}    '
         )
         sys.stdout.flush()
